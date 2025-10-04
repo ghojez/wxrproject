@@ -1,5 +1,4 @@
 # WXR Project
-[![Daily Update](https://github.com/ghojez/rainproject/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/ghojez/rainproject/actions/workflows/main.yml)
 ![alt text](https://github.com/ghojez/wxrproject/blob/main/WXR.png?raw=true)
 Historical weather data based on real Doppler radar depictions. The main goal of this project is to provide easy access to historical weather across many regions in ID. The radar generates precipitation images every 10 minutes, helping audiences understand how weather develops over time and how it correlates with business metrics
 
@@ -34,6 +33,7 @@ Data will be updated daily. The availability of historical data depends on maxim
 
 ## Usage Permit
 Access is limited to selected audiences. Please refrain from sharing or endorsing this tool outside the selected audiences defined by the project owner
+[![Daily Update](https://github.com/ghojez/rainproject/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/ghojez/rainproject/actions/workflows/main.yml)
 
 
 ---
