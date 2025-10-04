@@ -6,6 +6,7 @@ The workflow leverages Python, Pandas, and GitHub Actions to run on a scheduled 
 
 ## Features
 
+- Cloudflare R2 Backbone
 - Multi-station coverage
 - Automated scheduling using GitHub Actions
 - Data normalization to consistent 10-minute intervals
