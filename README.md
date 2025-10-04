@@ -2,7 +2,9 @@
 ![alt text](https://github.com/ghojez/wxrproject/blob/main/WXR.png?raw=true)
 Historical weather data based on real Doppler radar depictions. The main goal of this project is to provide easy access to historical weather across many regions in ID. The radar generates precipitation images every 10 minutes, helping audiences understand how weather develops over time and how it correlates with business metrics
 
-The workflow leverages Python, Pandas, and GitHub Actions to run on a scheduled basis (cron jobs), ensuring the data stays up to date without manual intervention.
+The workflow leverages Python, Pandas, and GitHub Actions to run on a scheduled basis (cron jobs), ensuring the data stays up to date without manual intervention
+
+Radar Image: https://ghojez.github.io/wxrproject/index.html
 
 ## Features
 
