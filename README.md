@@ -33,6 +33,9 @@ Data will be updated daily. The availability of historical data depends on maxim
 
 ## Usage Permit
 Access is limited to selected audiences. Please refrain from sharing or endorsing this tool outside the selected audiences defined by the project owner
+
+---
+
 [![Daily Update](https://github.com/ghojez/rainproject/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/ghojez/rainproject/actions/workflows/main.yml)
 
 
