@@ -3,1009 +3,226 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Station Radar Viewer</title>
-
+    <title>Radar Archive</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-:root {
-    --primary-color: #2c3e50;
-    --secondary-color: #3498db;
-    --success-color: #27ae60;
-    --warning-color: #f39c12;
-    --danger-color: #e74c3c;
-}
-
-body {
-    margin: 0;
-    padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-#map {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-}
-
-#control-panel {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    right: 10px;
-    z-index: 1000;
-    background: rgba(255, 255, 255, 0.95);
-    padding: 12px;
-    border-radius: 8px;
-    border: 2px solid var(--primary-color);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    max-width: 400px;
-    margin: 0 auto;
-}
-
-#layer-control {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 1000;
-    background: rgba(255, 255, 255, 0.95);
-    padding: 12px;
-    border-radius: 8px;
-    border: 2px solid var(--primary-color);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    max-width: 200px;
-}
-
-#time-controls {
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
-    right: 10px;
-    z-index: 1000;
-    background: rgba(255, 255, 255, 0.98);
-    padding: 15px;
-    border-radius: 12px;
-    border: 2px solid var(--primary-color);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-    backdrop-filter: blur(10px);
-}
-
-.panel-title {
-    font-weight: bold;
-    margin-bottom: 8px;
-    color: var(--primary-color);
-    font-size: 14px;
-}
-
-#timestamp {
-    font-size: 14px;
-    font-weight: bold;
-    color: #2980b9;
-    margin-bottom: 8px;
-    word-break: break-word;
-}
-
-#progress-info {
-    font-size: 11px;
-    color: #7f8c8d;
-    margin-bottom: 4px;
-}
-
-#cache-stats {
-    font-size: 10px;
-    color: #5d6d7e;
-    margin-top: 4px;
-    line-height: 1.3;
-}
-
-/* Improved slider styling */
-#time-slider {
-    width: 100%;
-    height: 20px;
-    margin: 10px 0;
-    -webkit-appearance: none;
-    background: linear-gradient(90deg, #3498db, #9b59b6);
-    border-radius: 10px;
-    outline: none;
-}
-
-#time-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 20px;
-    height: 20px;
-    background: var(--primary-color);
-    border-radius: 50%;
-    cursor: pointer;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-}
-
-/* Improved time marks with date above time */
-.time-marks {
-    display: flex;
-    justify-content: space-between;
-    font-size: 9px;
-    color: var(--primary-color);
-    margin-top: 6px;
-    font-weight: 600;
-    gap: 3px;
-    align-items: flex-start;
-    flex-wrap: wrap;
-}
-
-.time-mark {
-    flex: 1;
-    text-align: center;
-    padding: 2px 1px;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.time-mark-date {
-    font-size: 8px;
-    font-weight: bold;
-    line-height: 1.1;
-    margin-bottom: 1px;
-    white-space: nowrap;
-}
-
-.time-mark-time {
-    font-size: 8px;
-    line-height: 1.1;
-    white-space: nowrap;
-    color: #2c3e50;
-}
-
-.controls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    margin-top: 15px;
-    flex-wrap: wrap;
-}
-
-.btn {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 6px;
-    background: var(--secondary-color);
-    color: white;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    transition: all 0.3s;
-    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
-    flex: 1;
-    min-width: 0;
-}
-
-.btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
-}
-
-.btn-play {
-    background: var(--success-color);
-    min-width: 80px;
-    flex: 2;
-}
-
-.btn-play.playing {
-    background: var(--danger-color);
-}
-
-#speed-select {
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 2px solid #bdc3c7;
-    background: white;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--primary-color);
-    cursor: pointer;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    min-width: 0;
-}
-
-.loading-bar {
-    width: 100%;
-    height: 3px;
-    background: #ecf0f1;
-    border-radius: 2px;
-    overflow: hidden;
-    margin-top: 4px;
-}
-
-.loading-progress {
-    height: 100%;
-    background: #3498db;
-    width: 0%;
-    transition: width 0.3s;
-}
-
-.station-checkbox {
-    margin: 3px 0;
-}
-
-.station-checkbox label {
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    font-size: 11px;
-}
-
-.station-checkbox input {
-    margin-right: 6px;
-    transform: scale(0.8);
-}
-
-#counter {
-    margin: 0 8px;
-    font-weight: bold;
-    font-size: 12px;
-    min-width: 40px;
-    text-align: center;
-}
-
-/* Desktop styles */
-@media (min-width: 768px) {
-    #control-panel {
-top: 20px;
-left: 20px;
-right: auto;
-width: 300px;
-padding: 15px;
-    }
-
-    #layer-control {
-top: 20px;
-right: 20px;
-padding: 15px;
-max-width: 200px;
-    }
-
-    #time-controls {
-bottom: 30px;
-left: 50%;
-right: auto;
-transform: translateX(-50%);
-width: 85%;
-max-width: 900px;
-padding: 25px;
-    }
-
-    .panel-title {
-font-size: 16px;
-margin-bottom: 10px;
-    }
-
-    #timestamp {
-font-size: 18px;
-margin-bottom: 10px;
-    }
-
-    #progress-info {
-font-size: 12px;
-margin-bottom: 5px;
-    }
-
-    #cache-stats {
-font-size: 11px;
-    }
-
-    #time-slider {
-height: 25px;
-margin: 15px 0;
-    }
-
-    #time-slider::-webkit-slider-thumb {
-width: 25px;
-height: 25px;
-    }
-
-    .time-marks {
-font-size: 10px;
-margin-top: 8px;
-gap: 5px;
-    }
-
-    .time-mark-date {
-font-size: 9px;
-    }
-
-    .time-mark-time {
-font-size: 10px;
-    }
-
-    .controls {
-gap: 15px;
-margin-top: 20px;
-    }
-
-    .btn {
-padding: 12px 24px;
-font-size: 14px;
-flex: none;
-    }
-
-    .btn-play {
-min-width: 120px;
-flex: none;
-    }
-
-    #speed-select {
-padding: 10px 15px;
-font-size: 14px;
-    }
-
-    .station-checkbox label {
-font-size: 14px;
-    }
-
-    .station-checkbox input {
-transform: scale(1);
-margin-right: 8px;
-    }
-
-    #counter {
-font-size: 16px;
-margin: 0 15px;
-    }
-}
-
-/* Very small phones */
-@media (max-width: 360px) {
-    #control-panel {
-padding: 8px;
-max-width: calc(100vw - 20px);
-    }
-
-    #layer-control {
-padding: 8px;
-max-width: 150px;
-    }
-
-    #time-controls {
-padding: 10px;
-    }
-
-    .controls {
-gap: 4px;
-    }
-
-    .btn {
-padding: 6px 8px;
-font-size: 10px;
-    }
-
-    .btn-play {
-min-width: 60px;
-    }
-
-    #speed-select {
-padding: 4px 6px;
-font-size: 10px;
-    }
-
-    .time-marks {
-font-size: 7px;
-    }
-
-    .time-mark-date, .time-mark-time {
-font-size: 7px;
-    }
-}
-
-/* Hide layer control on very small screens when needed */
-@media (max-width: 480px) {
-    #layer-control {
-max-height: 200px;
-overflow-y: auto;
-    }
-}
-
-/* Ensure map is always accessible */
-@media (max-width: 768px) {
-    #control-panel {
-max-height: 120px;
-overflow: hidden;
-    }
-    
-    #control-panel:hover {
-max-height: none;
-background: rgba(255, 255, 255, 0.98);
-    }
-}
-
-</style>
-
+        body { margin: 0; font-family: sans-serif; background: #1a1a1a; color: #fff; display: flex; flex-direction: column; height: 100vh; }
+        #map { flex: 1; width: 100%; }
+        #controls { background: #222; padding: 10px; border-bottom: 1px solid #444; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; }
+        select, button { background: #333; color: white; border: 1px solid #555; padding: 5px 10px; border-radius: 4px; }
+        button:hover { background: #444; cursor: pointer; }
+        .group { display: flex; flex-direction: column; gap: 2px; }
+        label { font-size: 10px; color: #aaa; font-weight: bold; text-transform: uppercase; }
+        #timestamp { font-family: monospace; font-size: 16px; color: #4ade80; font-weight: bold; min-width: 180px; }
+        #stations { display: flex; gap: 10px; flex-wrap: wrap; }
+        .station-toggle { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+        input[type="range"] { width: 200px; accent-color: #4ade80; }
+        #loading-bar { height: 3px; background: transparent; width: 100%; position: absolute; top: 0; left: 0; z-index: 999; }
+        #loading-fill { height: 100%; background: #4ade80; width: 0%; transition: width 0.2s; }
+    </style>
 </head>
 <body>
-    <div id="control-panel">
-        <div class="panel-title">Multi-Station Radar Viewer</div>
-        <div id="timestamp">Initializing...</div>
-        <div id="progress-info">Loading: Initializing smart cache...</div>
-        <div id="cache-stats">Cache: 0MB/0MB • Images: 0/0</div>
-        <div class="loading-bar">
-            <div id="loading-progress" class="loading-progress"></div>
+    <div id="loading-bar"><div id="loading-fill"></div></div>
+    <div id="controls">
+        <div class="group">
+            <label>Month</label>
+            <select id="month-select"></select>
         </div>
+        <div class="group">
+            <label>Day</label>
+            <select id="day-select"></select>
+        </div>
+        <div class="group">
+            <label>Stations</label>
+            <div id="stations"></div>
+        </div>
+        <div style="flex:1"></div>
+        <div id="timestamp">--:--</div>
+        <button id="play-btn">▶ Play</button>
+        <input type="range" id="time-slider" min="0" max="0" value="0">
     </div>
-
-    <div id="layer-control">
-        <div class="panel-title">Weather Stations</div>
-        <div id="station-checkboxes">
-            
-            <div class="station-checkbox">
-                <label>
-                    <input type="checkbox" value="JAK" checked>
-                    JAK - Tangerang
-                </label>
-            </div>
-            
-            <div class="station-checkbox">
-                <label>
-                    <input type="checkbox" value="BAL" checked>
-                    BAL - Balikpapan
-                </label>
-            </div>
-            
-            <div class="station-checkbox">
-                <label>
-                    <input type="checkbox" value="BTH" checked>
-                    BTH - Batam
-                </label>
-            </div>
-            
-            <div class="station-checkbox">
-                <label>
-                    <input type="checkbox" value="DEN" checked>
-                    DEN - Denpasar
-                </label>
-            </div>
-            
-            <div class="station-checkbox">
-                <label>
-                    <input type="checkbox" value="MED" checked>
-                    MED - Medan
-                </label>
-            </div>
-            
-            <div class="station-checkbox">
-                <label>
-                    <input type="checkbox" value="SBY" checked>
-                    SBY - Surabaya
-                </label>
-            </div>
-            
-            <div class="station-checkbox">
-                <label>
-                    <input type="checkbox" value="YOG" checked>
-                    YOG - Yogyakarta
-                </label>
-            </div>
-            
-            <div class="station-checkbox">
-                <label>
-                    <input type="checkbox" value="SIN" checked>
-                    SIN - Singapore
-                </label>
-            </div>
-            
-        </div>
-    </div>
-
-    <div id="time-controls">
-        <input type="range" id="time-slider" min="0" max="0" value="0" step="1">
-        <div class="time-marks">
-            
-            <div class="time-mark">
-                <div class="time-mark-date">Oct 03</div>
-                <div class="time-mark-time">07:00</div>
-            </div>
-        
-            <div class="time-mark">
-                <div class="time-mark-date">Oct 13</div>
-                <div class="time-mark-time">20:00</div>
-            </div>
-        
-            <div class="time-mark">
-                <div class="time-mark-date">Oct 25</div>
-                <div class="time-mark-time">09:20</div>
-            </div>
-        
-            <div class="time-mark">
-                <div class="time-mark-date">Nov 05</div>
-                <div class="time-mark-time">14:00</div>
-            </div>
-        
-            <div class="time-mark">
-                <div class="time-mark-date">Nov 16</div>
-                <div class="time-mark-time">19:10</div>
-            </div>
-        
-            <div class="time-mark">
-                <div class="time-mark-date">Nov 29</div>
-                <div class="time-mark-time">18:00</div>
-            </div>
-        
-            <div class="time-mark">
-                <div class="time-mark-date">Dec 11</div>
-                <div class="time-mark-time">19:20</div>
-            </div>
-        
-            <div class="time-mark">
-                <div class="time-mark-date">Dec 23</div>
-                <div class="time-mark-time">15:30</div>
-            </div>
-        
-            <div class="time-mark">
-                <div class="time-mark-date">Jan 07</div>
-                <div class="time-mark-time">12:30</div>
-            </div>
-        
-            <div class="time-mark">
-                <div class="time-mark-date">Jan 18</div>
-                <div class="time-mark-time">21:50</div>
-            </div>
-        
-        </div>
-        <div class="controls">
-            <button class="btn" id="prev-btn">⏮ Previous</button>
-            <button class="btn btn-play" id="play-btn">▶ Play</button>
-            <button class="btn" id="next-btn">Next ⏭</button>
-            <span id="counter" style="margin: 0 15px; font-weight: bold; font-size: 16px;">1/1</span>
-            <select id="speed-select">
-                <option value="3000">1x Speed</option>
-                <option value="2000" selected>1.5x Speed</option>
-                <option value="1000">2x Speed</option>
-                <option value="500">3x Speed</option>
-                <option value="300">10x Speed</option>
-            </select>
-        </div>
-    </div>
-
+    
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        const CONFIG = {"STATION_CONFIG": {"JAK": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-3.9237287198122797", "104.39898771981228"], "overlayBRC": ["-8.418959280187721", "108.89421828018772"], "Kota": "Tangerang", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Jakarta/CMAX/JAK", "kode": "JAK"}, "YOG": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-5.484038019812279", "108.10668631981227"], "overlayBRC": ["-9.979268580187721", "112.6019168801877"], "Kota": "Yogyakarta", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Yogyakarta/CMAX/YOG", "kode": "YOG"}, "SBY": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-5.162649719812278", "110.51281671981229"], "overlayBRC": ["-9.657880280187719", "115.00804728018772"], "Kota": "Surabaya", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Surabaya/CMAX/SBY", "kode": "SBY"}, "DEN": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-6.491549719812279", "112.93123971981228"], "overlayBRC": ["-10.98678028018772", "117.42647028018771"], "Kota": "Denpasar", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Denpasar/CMAX/DEN", "kode": "DEN"}, "BTH": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["3.3724162801877204", "101.86413971981229"], "overlayBRC": ["-1.1228142801877208", "106.35937028018772"], "Kota": "Batam", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Batam/CMAX/BTH", "kode": "BTH"}, "BAL": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["0.9878822801877207", "114.64938471981229"], "overlayBRC": ["-3.5073482801877205", "119.14461528018772"], "Kota": "Balikpapan", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Balikpapan/CMAX/BAL", "kode": "BAL"}, "MAK": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-2.81493071981227", "117.283405719812"], "overlayBRC": ["-7.31016128018772", "121.778636280187"], "Kota": "Makassar", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=MakassarXBAND/CMAX/MAK", "kode": "MAK"}, "MED": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["5.787323280187721", "96.38955071981229"], "overlayBRC": ["1.2920927198122794", "100.88478128018772"], "Kota": "Medan", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Medan/CMAX/MED", "kode": "MED"}, "SIN": {"timezone_offset": -1, "url_pattern": "dpsri-prefix", "extension": ".dpsri.png", "overlayTLC": ["3.5182160000000003", "101.8125000000000000"], "overlayBRC": ["-0.8198160000000003", "106.1285000000000000"], "Kota": "Singapore", "base_url": "https://www.weather.gov.sg/files/rainarea/240km/dpsri_240km_", "kode": "SIN"}}, "AVAILABLE_DAYS": ["2025-09-30", "2025-10-01", "2025-10-02", "2025-10-03", "2025-10-04", "2025-10-05", "2025-10-06", "2025-10-07", "2025-10-08", "2025-10-09", "2025-10-10", "2025-10-11", "2025-10-12", "2025-10-13", "2025-10-14", "2025-10-15", "2025-10-16", "2025-10-17", "2025-10-18", "2025-10-19", "2025-10-20", "2025-10-21", "2025-10-22", "2025-10-23", "2025-10-24", "2025-10-25", "2025-10-26", "2025-10-27", "2025-10-28", "2025-10-29", "2025-10-30", "2025-10-31", "2025-11-01", "2025-11-02", "2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06", "2025-11-07", "2025-11-08", "2025-11-09", "2025-11-10", "2025-11-11", "2025-11-12", "2025-11-13", "2025-11-14", "2025-11-15", "2025-11-16", "2025-11-17", "2025-11-18", "2025-11-19", "2025-11-20", "2025-11-21", "2025-11-22", "2025-11-23", "2025-11-24", "2025-11-25", "2025-11-26", "2025-11-27", "2025-11-28", "2025-11-29", "2025-11-30", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-06", "2025-12-07", "2025-12-08", "2025-12-09", "2025-12-10", "2025-12-11", "2025-12-12", "2025-12-13", "2025-12-14", "2025-12-15", "2025-12-16", "2025-12-17", "2025-12-18", "2025-12-19", "2025-12-20", "2025-12-21", "2025-12-22", "2025-12-23", "2025-12-24", "2025-12-25", "2025-12-26", "2025-12-27", "2025-12-28", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-10", "2026-01-11", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-17", "2026-01-18", "2026-01-19", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-24", "2026-01-25", "2026-01-26", "2026-01-27", "2026-01-28"], "STATION_MONTHS": {"BAL": ["202510", "202511", "202512", "202601"], "BTH": ["202510", "202511", "202512", "202601"], "DEN": ["202510", "202511", "202512", "202601"], "JAK": ["202510", "202511", "202512", "202601"], "MAK": ["202510"], "MED": ["202510", "202511", "202512", "202601"], "SBY": ["202510", "202511", "202512", "202601"], "SIN": ["202510", "202511", "202512", "202601"], "UNKNOWN": ["202509", "202510"], "YOG": ["202510", "202511", "202512", "202601"]}, "INITIAL_CENTER": [-2.5, 118], "INITIAL_ZOOM": 5};
+        let state = { map: null, overlays: new Map(), frames: [], index: 0, isPlaying: false, timer: null, activeStations: ['JAK', 'SBY', 'BAL', 'DEN'], cache: new Map(), bufferRadius: 15 };
 
-// Configuration
-const STATION_DATA = {};
-const STATION_CONFIG = {"JAK": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-3.9237287198122797", "104.39898771981228"], "overlayBRC": ["-8.418959280187721", "108.89421828018772"], "Kota": "Tangerang", "Stasiun": "Stasiun Meteorologi Cengkareng", "lat": -6.171344, "lon": 106.646603, "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Jakarta/CMAX/JAK", "kode": "JAK", "_id": "station_JAK", "__v": 0}, "YOG": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-5.484038019812279", "108.10668631981227"], "overlayBRC": ["-9.979268580187721", "112.6019168801877"], "Kota": "Yogyakarta", "Stasiun": "Stasiun Klimatologi Yogyakarta", "lat": -7.7316533, "lon": 110.3543016, "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Yogyakarta/CMAX/YOG", "kode": "YOG", "_id": "station_YOG", "__v": 0}, "SBY": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-5.162649719812278", "110.51281671981229"], "overlayBRC": ["-9.657880280187719", "115.00804728018772"], "Kota": "Surabaya", "Stasiun": "Stasiun Meteorologi Juanda - Surabaya", "lat": -7.410265, "lon": 112.760432, "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Surabaya/CMAX/SBY", "kode": "SBY", "_id": "station_SBY", "__v": 0}, "DEN": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-6.491549719812279", "112.93123971981228"], "overlayBRC": ["-10.98678028018772", "117.42647028018771"], "Kota": "Denpasar", "Stasiun": "Balai Besar Wilayah III Denpasar", "lat": -8.739165, "lon": 115.178855, "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Denpasar/CMAX/DEN", "kode": "DEN", "_id": "station_DEN", "__v": 0}, "BTH": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["3.3724162801877204", "101.86413971981229"], "overlayBRC": ["-1.1228142801877208", "106.35937028018772"], "Kota": "Batam", "Stasiun": "Stasiun Meteorologi Hang Nadim Batam", "lat": 1.124801, "lon": 104.111755, "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Batam/CMAX/BTH", "kode": "BTH", "_id": "station_BTH", "__v": 0}, "BAL": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["0.9878822801877207", "114.64938471981229"], "overlayBRC": ["-3.5073482801877205", "119.14461528018772"], "Kota": "Balikpapan", "Stasiun": "Stasiun Meteorologi Sepinggan Balikpapan", "lat": -1.259733, "lon": 116.897, "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Balikpapan/CMAX/BAL", "kode": "BAL", "_id": "station_BAL", "__v": 0}, "MAK": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-2.81493071981227", "117.283405719812"], "overlayBRC": ["-7.31016128018772", "121.778636280187"], "Kota": "Makassar Hassanudin Airport", "Stasiun": "Stasiun Meteorologi Hasanuddin Makassar", "lat": -5.062546, "lon": 119.531021, "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=MakassarXBAND/CMAX/MAK", "kode": "MAK", "_id": "station_MAK", "__v": 0}, "MED": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["5.787323280187721", "96.38955071981229"], "overlayBRC": ["1.2920927198122794", "100.88478128018772"], "Kota": "Medan", "Stasiun": "Balai Besar Wilayah I Medan", "lat": 3.539708, "lon": 98.637166, "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Medan/CMAX/MED", "kode": "MED", "_id": "station_MED", "__v": 0}, "SIN": {"timezone_offset": -1, "url_pattern": "dpsri-prefix", "extension": ".dpsri.png", "overlayTLC": ["3.5182160000000003", "101.8125000000000000"], "overlayBRC": ["-0.8198160000000003", "106.1285000000000000"], "Kota": "Singapore", "Stasiun": "Changi Airport", "lat": 1.3492, "lon": 103.8836, "base_url": "https://www.weather.gov.sg/files/rainarea/240km/dpsri_240km_", "kode": "SIN", "_id": "station_SIN", "__v": 0}};
-const AVAILABLE_DAYS = ["2025-09-30", "2025-10-01", "2025-10-02", "2025-10-03", "2025-10-04", "2025-10-05", "2025-10-06", "2025-10-07", "2025-10-08", "2025-10-09", "2025-10-10", "2025-10-11", "2025-10-12", "2025-10-13", "2025-10-14", "2025-10-15", "2025-10-16", "2025-10-17", "2025-10-18", "2025-10-19", "2025-10-20", "2025-10-21", "2025-10-22", "2025-10-23", "2025-10-24", "2025-10-25", "2025-10-26", "2025-10-27", "2025-10-28", "2025-10-29", "2025-10-30", "2025-10-31", "2025-11-01", "2025-11-02", "2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06", "2025-11-07", "2025-11-08", "2025-11-09", "2025-11-10", "2025-11-11", "2025-11-12", "2025-11-13", "2025-11-14", "2025-11-15", "2025-11-16", "2025-11-17", "2025-11-18", "2025-11-19", "2025-11-20", "2025-11-21", "2025-11-22", "2025-11-23", "2025-11-24", "2025-11-25", "2025-11-26", "2025-11-27", "2025-11-28", "2025-11-29", "2025-11-30", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-06", "2025-12-07", "2025-12-08", "2025-12-09", "2025-12-10", "2025-12-11", "2025-12-12", "2025-12-13", "2025-12-14", "2025-12-15", "2025-12-16", "2025-12-17", "2025-12-18", "2025-12-19", "2025-12-20", "2025-12-21", "2025-12-22", "2025-12-23", "2025-12-24", "2025-12-25", "2025-12-26", "2025-12-27", "2025-12-28", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-10", "2026-01-11", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-17", "2026-01-18", "2026-01-19", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-24", "2026-01-25", "2026-01-26", "2026-01-27", "2026-01-28"];
-const STATION_MONTHS = {"BAL": ["202510", "202511", "202512", "202601"], "BTH": ["202510", "202511", "202512", "202601"], "DEN": ["202510", "202511", "202512", "202601"], "JAK": ["202510", "202511", "202512", "202601"], "MAK": ["202510"], "MED": ["202510", "202511", "202512", "202601"], "SBY": ["202510", "202511", "202512", "202601"], "UNKNOWN": ["202509", "202510"], "YOG": ["202510", "202511", "202512", "202601"], "SIN": ["202510", "202511", "202512", "202601"]};
-
-const CONFIG = {
-    center: [-3.1623064125, 108.56957657500001],
-    zoom: 5,
-    playSpeed: 2000
-};
-
-// Application state
-let state = {
-    map: null,
-    currentOverlays: new Map(),
-    currentIndex: 0,
-    isPlaying: false,
-    playInterval: null,
-    playSpeed: CONFIG.playSpeed,
-    activeStations: ["JAK", "BAL", "BTH", "DEN", "MED", "SBY", "YOG", "SIN"],
-    currentTimeData: [],
-    
-    // Cache System
-    imageCache: new Map(),
-    imageSizes: new Map(),
-    cacheHits: new Map(),
-    loadingQueue: [],
-    currentlyLoading: 0,
-    maxConcurrentLoads: 15,
-    maxCacheSize: 10000,
-    preloadPercentage: 1.0,
-    preloadRange: 0,
-    loadedCount: 0,
-    totalImagesToLoad: 0,
-    totalLoadedSize: 0,
-    estimatedTotalSize: 0,
-    preloadAll: true,
-    failedLoads: 0,
-    lastProgressUiUpdate: 0,
-
-    // Data Loading
-    selectedDay: null,
-    loadedFiles: new Set(),
-    isFetching: false
-};
-
-// --- DATA LOADING LOGIC ---
-
-async function loadDataForDay(dayString) {
-    if (!dayString) return;
-    
-    const [year, month, day] = dayString.split('-');
-    const monthKey = `${year}${month}`;
-    
-    document.getElementById('progress-info').textContent = "⬇️ Downloading radar data...";
-    state.isFetching = true;
-    
-    const fetchPromises = [];
-
-    state.activeStations.forEach(stationCode => {
-        // Only fetch if this station has data for this month
-        if (!STATION_MONTHS[stationCode] || !STATION_MONTHS[stationCode].includes(monthKey)) {
-            return;
+        function init() {
+            state.map = L.map('map').setView(CONFIG.INITIAL_CENTER, CONFIG.INITIAL_ZOOM);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CARTO' }).addTo(state.map);
+            
+            initUI();
+            
+            // Auto-load latest
+            const months = getUniqueMonths();
+            if(months.length) {
+                document.getElementById('month-select').value = months[0];
+                populateDays(months[0]);
+            }
         }
 
-        const fileId = `${stationCode}_${monthKey}`;
-        if (state.loadedFiles.has(fileId)) return;
+        function getUniqueMonths() {
+            const m = new Set(CONFIG.AVAILABLE_DAYS.map(d => d.substring(0, 7))); // 2025-10
+            return Array.from(m).sort().reverse();
+        }
 
-        const url = `data/${fileId}.json`;
-        
-        const p = fetch(url)
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.json();
-            })
-            .then(data => {
-                if (!STATION_DATA[stationCode]) STATION_DATA[stationCode] = [];
-                // Simple append is safe because we only fetch distinct months
-                STATION_DATA[stationCode] = STATION_DATA[stationCode].concat(data);
-                state.loadedFiles.add(fileId);
-                console.log(`✅ Loaded ${fileId}: ${data.length} frames`);
-            })
-            .catch(err => console.warn(`Failed to load ${fileId}:`, err));
+        function initUI() {
+            // Month Selector
+            const monthSel = document.getElementById('month-select');
+            getUniqueMonths().forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.text = new Date(m + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                monthSel.add(opt);
+            });
+            monthSel.onchange = (e) => populateDays(e.target.value);
+
+            // Day Selector
+            document.getElementById('day-select').onchange = (e) => loadDay(e.target.value);
+
+            // Station Toggles
+            const stContainer = document.getElementById('stations');
+            Object.keys(CONFIG.STATION_CONFIG).forEach(code => {
+                const div = document.createElement('div');
+                div.className = 'station-toggle';
+                div.innerHTML = `<input type="checkbox" value="${code}" ${state.activeStations.includes(code) ? 'checked' : ''}> ${code}`;
+                div.querySelector('input').onchange = (e) => {
+                    if(e.target.checked) state.activeStations.push(code);
+                    else state.activeStations = state.activeStations.filter(c => c !== code);
+                    loadDay(document.getElementById('day-select').value); 
+                };
+                stContainer.appendChild(div);
+            });
+
+            // Controls
+            document.getElementById('time-slider').oninput = (e) => showFrame(parseInt(e.target.value));
+            document.getElementById('play-btn').onclick = togglePlay;
+        }
+
+        function populateDays(monthStr) {
+            const daySel = document.getElementById('day-select');
+            daySel.innerHTML = '';
+            const days = CONFIG.AVAILABLE_DAYS.filter(d => d.startsWith(monthStr)).sort().reverse();
+            days.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.text = d.split('-')[2]; // Just the day number
+                daySel.add(opt);
+            });
+            if(days.length) loadDay(days[0]);
+        }
+
+        async function loadDay(dateStr) {
+            if(!dateStr) return;
+            showLoading(true);
+            const [y, m] = dateStr.split('-');
+            const monthKey = y + m;
             
-        fetchPromises.push(p);
-    });
-
-    if (fetchPromises.length > 0) {
-        await Promise.all(fetchPromises);
-        rebuildTimeData();
-    }
-    state.isFetching = false;
-}
-
-function initDaySelector() {
-    state.availableDays = AVAILABLE_DAYS;
-    
-    if (!document.getElementById('day-select')) {
-        const controlPanel = document.getElementById('control-panel');
-        const daySelector = document.createElement('div');
-        daySelector.id = 'day-selector';
-        daySelector.style.marginBottom = '10px';
-        daySelector.innerHTML = `
-            <label for="day-select" style="font-size: 12px; font-weight: bold;">Select Date: </label>
-            <select id="day-select" style="padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
-                ${state.availableDays.map(day => {
-                    try {
-                        const dateObj = new Date(day + 'T00:00:00Z');
-                        const displayDate = dateObj.toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: '2-digit' 
-                        });
-                        return `<option value="${day}">${displayDate}</option>`;
-                    } catch (e) {
-                        return `<option value="${day}">${day}</option>`;
-                    }
-                }).join('')}
-            </select>
-        `;
-        const panelTitle = controlPanel.querySelector('.panel-title');
-        panelTitle.parentNode.insertBefore(daySelector, panelTitle.nextSibling);
-    }
-    
-    document.getElementById('day-select').addEventListener('change', async (e) => {
-        state.selectedDay = e.target.value;
-        await loadDataForDay(state.selectedDay);
-        
-        rebuildTimeData(); // Filter happens inside rebuild
-        initSmartCache();
-        updateDisplay(0);
-    });
-    
-    // Initial Load
-    if (state.availableDays.length > 0) {
-        state.selectedDay = state.availableDays[state.availableDays.length - 1];
-        document.getElementById('day-select').value = state.selectedDay;
-        
-        loadDataForDay(state.selectedDay).then(() => {
-            rebuildTimeData();
-            initSmartCache();
-        });
-    }
-}
-
-async function updateActiveStations() {
-    const checkboxes = document.querySelectorAll('.station-checkbox input');
-    state.activeStations = [];
-
-    checkboxes.forEach(checkbox => {
-        if (checkbox.checked) state.activeStations.push(checkbox.value);
-    });
-
-    // We might need to fetch data for the newly enabled station
-    await loadDataForDay(state.selectedDay);
-
-    rebuildTimeData();
-    if (state.currentTimeData.length > 0) {
-        updateDisplay(state.currentIndex);
-    }
-}
-
-// --- STANDARD VIEWER LOGIC (Simplified) ---
-
-function rebuildTimeData() {
-    if (state.activeStations.length === 0 || !state.selectedDay) {
-        state.currentTimeData = [];
-        return;
-    }
-
-    const allTimestamps = new Set();
-    const timestampData = new Map();
-
-    state.activeStations.forEach(stationCode => {
-        if (STATION_DATA[stationCode]) {
-            STATION_DATA[stationCode].forEach(item => {
-                // Only include data for selected day
-                if (item.time.startsWith(state.selectedDay)) {
-                    allTimestamps.add(item.time);
-                    if (!timestampData.has(item.time)) {
-                        timestampData.set(item.time, {});
-                    }
-                    timestampData.get(item.time)[stationCode] = item;
+            const promises = state.activeStations.map(async code => {
+                if(!CONFIG.STATION_MONTHS[code]?.includes(monthKey)) return [];
+                
+                try {
+                    const res = await fetch(`data/${code}_${monthKey}.json`);
+                    if(!res.ok) return [];
+                    const data = await res.json();
+                    
+                    // FIXED: Using 'time' to match your JSON structure
+                    return data.filter(item => item.time.startsWith(dateStr)).map(i => ({...i, s: code}));
+                } catch (e) {
+                    console.error("Error loading", code, e);
+                    return [];
                 }
             });
+
+            const results = await Promise.all(promises);
+            const allFrames = results.flat();
+
+            const timeMap = new Map();
+            allFrames.forEach(f => {
+                // FIXED: Using 'time' here as well
+                if(!timeMap.has(f.time)) timeMap.set(f.time, { time: f.time, stations: [] });
+                timeMap.get(f.time).stations.push(f);
+            });
+
+            state.frames = Array.from(timeMap.values()).sort((a,b) => a.time.localeCompare(b.time));
+            state.cache.clear();
+            
+            if (state.frames.length === 0) {
+                document.getElementById('timestamp').innerText = "No Data";
+                state.overlays.forEach(l => state.map.removeLayer(l));
+                state.overlays.clear();
+                showLoading(false);
+                return;
+            }
+
+            document.getElementById('time-slider').max = state.frames.length - 1;
+            document.getElementById('time-slider').value = 0;
+            
+            showFrame(0);
+            showLoading(false);
         }
-    });
 
-    const sortedTimestamps = Array.from(allTimestamps).sort();
-    state.currentTimeData = sortedTimestamps.map(timestamp => {
-        return {
-            time: timestamp,
-            stations: timestampData.get(timestamp) || {}
-        };
-    });
+        function showFrame(index) {
+            state.index = index;
+            const frame = state.frames[index];
+            if(!frame) return;
 
-    updateSlider();
-    updateTimeMarks();
-}
+            document.getElementById('timestamp').innerText = frame.time.replace('T', ' ').substring(0, 16);
+            document.getElementById('time-slider').value = index;
 
-function updateSlider() {
-    const slider = document.getElementById('time-slider');
-    const maxIndex = Math.max(0, state.currentTimeData.length - 1);
-    slider.max = maxIndex;
-    slider.value = Math.min(state.currentIndex, maxIndex);
-    updateCounter();
-}
+            state.overlays.forEach(l => state.map.removeLayer(l));
+            state.overlays.clear();
 
-function updateTimeMarks() {
-    const timeMarksContainer = document.querySelector('.time-marks');
-    if (!timeMarksContainer) return;
-    
-    const numMarks = Math.min(10, state.currentTimeData.length);
-    const timeMarks = [];
-    
-    if (state.currentTimeData.length <= numMarks) {
-        state.currentTimeData.forEach(item => timeMarks.push(item.time));
-    } else {
-        const step = Math.max(1, Math.floor(state.currentTimeData.length / (numMarks - 1)));
-        for (let i = 0; i < state.currentTimeData.length; i += step) {
-            if (timeMarks.length < numMarks) {
-                timeMarks.push(state.currentTimeData[i].time);
+            frame.stations.forEach(st => {
+                const cfg = CONFIG.STATION_CONFIG[st.s];
+                const bounds = [[cfg.overlayBRC[0], cfg.overlayBRC[1]], [cfg.overlayTLC[0], cfg.overlayTLC[1]]];
+                
+                // FIXED: Using 'url' instead of 'u'
+                const overlay = L.imageOverlay(st.url, bounds, { opacity: 0.8 }).addTo(state.map);
+                state.overlays.set(st.s, overlay);
+            });
+
+            preload(index);
+        }
+
+        function preload(currIdx) {
+            const end = Math.min(state.frames.length, currIdx + state.bufferRadius);
+            for(let i=currIdx; i<end; i++) {
+                state.frames[i].stations.forEach(st => {
+                    if(!state.cache.has(st.url)) {
+                        const img = new Image();
+                        img.src = st.url;
+                        state.cache.set(st.url, img);
+                    }
+                });
             }
         }
-        if (timeMarks.length > 0 && timeMarks[timeMarks.length - 1] !== state.currentTimeData[state.currentTimeData.length - 1].time) {
-            timeMarks[timeMarks.length - 1] = state.currentTimeData[state.currentTimeData.length - 1].time;
-        }
-    }
-    
-    let marksHTML = '';
-    timeMarks.forEach(mark => {
-        const [datePart, timePart] = mark.split('T');
-        const timeDisplay = timePart ? timePart.substring(0, 5) : '';
-        marksHTML += `
-            <div class="time-mark">
-                <div class="time-mark-time">${timeDisplay}</div>
-            </div>
-        `;
-    });
-    timeMarksContainer.innerHTML = marksHTML;
-}
 
-// --- INITIALIZATION ---
-
-function init() {
-    initMap();
-    initDaySelector(); 
-    initEventListeners();
-    // initSmartCache called after data load
-}
-
-function initMap() {
-    state.map = L.map('map').setView(CONFIG.center, CONFIG.zoom);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(state.map);
-}
-
-function initEventListeners() {
-    document.getElementById('time-slider').addEventListener('input', (e) => {
-        updateDisplay(parseInt(e.target.value, 10));
-    });
-    document.getElementById('prev-btn').addEventListener('click', () => {
-        if (state.currentIndex > 0) updateDisplay(state.currentIndex - 1);
-    });
-    document.getElementById('next-btn').addEventListener('click', () => {
-        if (state.currentIndex < state.currentTimeData.length - 1) updateDisplay(state.currentIndex + 1);
-    });
-    document.getElementById('play-btn').addEventListener('click', togglePlay);
-    document.getElementById('speed-select').addEventListener('change', (e) => {
-        state.playSpeed = parseInt(e.target.value, 10);
-        if (state.isPlaying) { stopPlayback(); startPlayback(); }
-    });
-    document.querySelectorAll('.station-checkbox input').forEach(checkbox => {
-        checkbox.addEventListener('change', updateActiveStations);
-    });
-}
-
-// --- DISPLAY & CACHE (Smart Cache) ---
-
-function initSmartCache() {
-    if (!state.currentTimeData || state.currentTimeData.length === 0) {
-        document.getElementById('progress-info').textContent = "⚠️ No radar frames.";
-        return;
-    }
-    state.totalImagesToLoad = state.currentTimeData.length * state.activeStations.length;
-    state.estimatedTotalSize = state.totalImagesToLoad * 80 * 1024;
-    state.imageCache.clear();
-    state.loadedCount = 0;
-    state.totalLoadedSize = 0;
-    state.loadingQueue = [];
-    
-    updateProgress();
-    
-    for (let index = 0; index < state.currentTimeData.length; index++) {
-        addToLoadingQueue(index);
-    }
-    processLoadingQueue();
-}
-
-function addToLoadingQueue(index) {
-    if (!state.loadingQueue.includes(index) && !state.imageCache.has(index)) {
-        state.loadingQueue.push(index);
-    }
-}
-
-async function processLoadingQueue() {
-    while (state.currentlyLoading < state.maxConcurrentLoads && state.loadingQueue.length > 0) {
-        const index = state.loadingQueue.shift();
-        loadImage(index); // no await to allow parallelism
-        await new Promise(r => setTimeout(r, 20));
-    }
-}
-
-async function loadImage(index) {
-    if (state.imageCache.has(index)) return;
-
-    state.currentlyLoading++;
-    const currentData = state.currentTimeData[index];
-    const imagePromises = [];
-
-    state.activeStations.forEach(stationCode => {
-        const stationData = currentData.stations[stationCode];
-        if (stationData) {
-            imagePromises.push(loadImageStream(index, stationCode, stationData.url));
-        }
-    });
-
-    await Promise.allSettled(imagePromises);
-    state.currentlyLoading--;
-    
-    // Trigger next batch
-    processLoadingQueue();
-    
-    if (index === state.currentIndex) updateDisplayFromCache(state.currentIndex);
-}
-
-async function loadImageStream(index, stationCode, url) {
-    try {
-        const response = await fetch(url, { mode: 'cors' });
-        if (!response.ok) throw new Error("Fetch failed");
-        const blob = await response.blob();
-        
-        const img = new Image();
-        img.src = URL.createObjectURL(blob);
-        
-        await new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = reject;
-        });
-
-        if (!state.imageCache.has(index)) state.imageCache.set(index, new Map());
-        state.imageCache.get(index).set(stationCode, img);
-        
-        state.loadedCount++;
-        state.totalLoadedSize += blob.size;
-        
-        // Update UI every 10 images to save resources
-        if (state.loadedCount % 10 === 0) updateProgress();
-
-    } catch (e) {
-        state.failedLoads++;
-    }
-}
-
-function updateProgress() {
-    const percent = Math.min((state.loadedCount / (state.totalImagesToLoad || 1)) * 100, 100);
-    document.getElementById('loading-progress').style.width = `${percent}%`;
-    document.getElementById('progress-info').textContent = `Loading: ${Math.round(percent)}%`;
-}
-
-function updateDisplay(index) {
-    state.currentIndex = Math.max(0, Math.min(index, state.currentTimeData.length - 1));
-    updateDisplayFromCache(state.currentIndex);
-}
-
-function updateDisplayFromCache(index) {
-    const currentData = state.currentTimeData[index];
-    if (!currentData) return;
-
-    updateTimestamp(currentData.time);
-    
-    const cachedImages = state.imageCache.get(index);
-    
-    state.currentOverlays.forEach(overlay => state.map.removeLayer(overlay));
-    state.currentOverlays.clear();
-
-    if (cachedImages) {
-        state.activeStations.forEach(stationCode => {
-            const cachedImage = cachedImages.get(stationCode);
-            if (cachedImage && STATION_CONFIG[stationCode]) {
-                const conf = STATION_CONFIG[stationCode];
-                const bounds = [[conf.overlayBRC[0], conf.overlayBRC[1]], [conf.overlayTLC[0], conf.overlayTLC[1]]];
-                const overlay = L.imageOverlay(cachedImage.src, bounds, { opacity: 0.6 }).addTo(state.map);
-                state.currentOverlays.set(stationCode, overlay);
+        function togglePlay() {
+            state.isPlaying = !state.isPlaying;
+            document.getElementById('play-btn').innerText = state.isPlaying ? '⏸ Pause' : '▶ Play';
+            
+            if(state.isPlaying) {
+                state.timer = setInterval(() => {
+                    let next = state.index + 1;
+                    if(next >= state.frames.length) next = 0;
+                    showFrame(next);
+                }, 500); // 500ms speed
+            } else {
+                clearInterval(state.timer);
             }
-        });
-    }
+        }
 
-    document.getElementById('time-slider').value = index;
-    document.getElementById('counter').textContent = `${index + 1}/${state.currentTimeData.length}`;
-}
+        function showLoading(show) {
+            document.getElementById('loading-fill').style.width = show ? '50%' : '100%';
+            setTimeout(() => {
+                if(!show) document.getElementById('loading-fill').style.width = '0%';
+            }, 200);
+        }
 
-function updateTimestamp(isoTime) {
-    const [date, time] = isoTime.split('T');
-    const [h, m] = time.split(':');
-    document.getElementById('timestamp').textContent = `${date} ${h}:${m} UTC`;
-}
-
-function togglePlay() {
-    if (state.isPlaying) stopPlayback();
-    else startPlayback();
-}
-
-function startPlayback() {
-    if (!state.currentTimeData.length) return;
-    state.isPlaying = true;
-    document.getElementById('play-btn').textContent = '⏸ Pause';
-    state.playInterval = setInterval(() => {
-        let nextIndex = state.currentIndex + 1;
-        if (nextIndex >= state.currentTimeData.length) nextIndex = 0;
-        updateDisplay(nextIndex);
-    }, state.playSpeed);
-}
-
-function stopPlayback() {
-    state.isPlaying = false;
-    document.getElementById('play-btn').textContent = '▶ Play';
-    clearInterval(state.playInterval);
-}
-
-document.addEventListener('DOMContentLoaded', init);
-    
-</script>
-<!-- ODS FPA Data Team :) -->
+        init();
+    </script>
 </body>
 </html>
