@@ -1,103 +1,212 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>WXR Radar Viewer</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Archive</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { margin: 0; padding: 0; background: #1a1a1a; color: white; font-family: sans-serif; }
-        #map { height: 80vh; width: 100%; }
-        #controls { padding: 20px; text-align: center; }
-        select, button { padding: 10px; margin: 5px; background: #333; color: white; border: 1px solid #555; }
-        #timeline { width: 80%; }
+        body { margin: 0; font-family: sans-serif; background: #1a1a1a; color: #fff; display: flex; flex-direction: column; height: 100vh; }
+        #map { flex: 1; width: 100%; }
+        #controls { background: #222; padding: 10px; border-bottom: 1px solid #444; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; }
+        select, button { background: #333; color: white; border: 1px solid #555; padding: 5px 10px; border-radius: 4px; }
+        button:hover { background: #444; cursor: pointer; }
+        .group { display: flex; flex-direction: column; gap: 2px; }
+        label { font-size: 10px; color: #aaa; font-weight: bold; text-transform: uppercase; }
+        #timestamp { font-family: monospace; font-size: 16px; color: #4ade80; font-weight: bold; min-width: 180px; }
+        #stations { display: flex; gap: 10px; flex-wrap: wrap; }
+        .station-toggle { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+        input[type="range"] { width: 200px; accent-color: #4ade80; }
+        #loading-bar { height: 3px; background: transparent; width: 100%; position: absolute; top: 0; left: 0; z-index: 999; }
+        #loading-fill { height: 100%; background: #4ade80; width: 0%; transition: width 0.2s; }
     </style>
 </head>
 <body>
-    <div id="map"></div>
+    <div id="loading-bar"><div id="loading-fill"></div></div>
     <div id="controls">
-        <select id="stationSelect" onchange="changeStation()"></select>
-        <button onclick="togglePlay()">Play/Pause</button>
-        <input type="range" id="timeline" min="0" max="100" value="0" oninput="scrub(this.value)">
-        <span id="timeDisplay">--:--</span>
+        <div class="group">
+            <label>Month</label>
+            <select id="month-select"></select>
+        </div>
+        <div class="group">
+            <label>Day</label>
+            <select id="day-select"></select>
+        </div>
+        <div class="group">
+            <label>Stations</label>
+            <div id="stations"></div>
+        </div>
+        <div style="flex:1"></div>
+        <div id="timestamp">--:--</div>
+        <button id="play-btn">▶ Play</button>
+        <input type="range" id="time-slider" min="0" max="0" value="0">
     </div>
+    
+    <div id="map"></div>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const radarData = {"JAK": [], "YOG": [], "SBY": [], "DEN": [], "BTH": [], "BAL": [], "MAK": [], "MED": [], "SIN": [{"time": "18:30", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/1930.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=0cc0b10c74a2e6b919bd0d810e796fa9a4a96d3648541d0175f3ded315ce217b"}, {"time": "18:30", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/1935.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=1588b8b9858ddf3d0a3d438d9eca1f3c85c54208ceaa84bb4a97e1cfadb0a96e"}, {"time": "18:40", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/1940.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=9d76599a932957853c607faf3fad6e17d4f10a4f12adf8e27c98d7819277a7dd"}, {"time": "18:50", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/1955.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=fb8f07e77c13faa255b1e6c1d7d6a80ea027bbdc1a12fdb52436056676ff904c"}, {"time": "18:50", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/1950.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=3259dcfae7ad6e8ce4da23f4bc3b3e2a350967e8974fce31145d2bee74264627"}, {"time": "19:00", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2000.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=a5cb39b2c38e83ba9c8c6fcb946742efe863f79734ca070966bf867b7d00d966"}, {"time": "19:00", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2005.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=08daf9c875462925c1c07771895773419fb047e2ce0025f2a9f2a11b217b1c0e"}, {"time": "19:10", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2015.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=adc27f17d260b54219eb55f2dd44575d43308c781c18d0670c42d76ef3562460"}, {"time": "19:10", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2010.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=d7ababf6c5db15811b7e601e58a58ad37892e7eb3836e73bd6d1b355a4e81e26"}, {"time": "19:20", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2025.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=8735df457e5699b1f26922df2a872e2aeff1a28c3f7b52d78f68b3be3b24c9a8"}, {"time": "19:20", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2020.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=935958fcb8f700abf55c17b76a7c4a29a231b8d7bcaca5bfc492ada49326e60f"}, {"time": "19:30", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2030.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=a133fa74394c1f57498ed9c4ed9cb38b1ca3a38d3282a221a4ffe6e34c24dfc2"}, {"time": "19:30", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2035.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=aac45503f3ff04028432a9e0fdc7452807d78c85d8ea601f297d457d5ef68693"}, {"time": "19:40", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2040.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=c2ce74c776cddfe074e7855ad65da0b3ba709aa291fa70e8e8f5f2906edbb99c"}, {"time": "19:40", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2045.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=26a86393a648ad901a845673111816feb8458614c9926b47e481607318cb4cec"}, {"time": "19:50", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2050.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=64dfe3cc11f8a32f035d52ce769048ea78bc85b1ab663712895a347a9612d0d8"}, {"time": "19:50", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2055.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=f36b77fffcb774a4e3efdbc5d9d2d2767c9ea3c5e92b03d425ce0f5070e1ff48"}, {"time": "20:00", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2105.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=6156adb13e0fcc5ff1d6c383d42b918a1c6acc6854f9a0109fec70f35f49f062"}, {"time": "20:00", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2100.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=6038525d347fe4d8828a831a383fa08e5e6b68f3d348b28b1b28e57efcb18e1b"}, {"time": "20:10", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2115.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=471d5ce788a91c62326dddd1e6f21d912120be34a0fdff07906c0aa413161e14"}, {"time": "20:10", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2110.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=201fd96cc9af16f9b9515337dab022f761edd7b5629173aaa70d169be210ae00"}, {"time": "20:20", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2120.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=8a9880ef2818ba7df3570d4d4249c72221b66257ec73249a488e628ace6ca93b"}, {"time": "20:20", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2125.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=7e388139d6f0ac43ec93c40cf55776e58ec906bff7371b183227fd2fce5b0cd6"}, {"time": "20:30", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2135.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=b8d719cd0f006a3335d6073c9499eb3876c61a1b07a20df1df75a6b95a3897db"}, {"time": "20:30", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2130.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=62d2d7d278fa08c5f8b95f5e0b195056f6e73bf99144eca09398d569bcfcd0f5"}, {"time": "20:40", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2140.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=1f78804857161b0980ade05d51c3c463bef72eadcf0ca23d8770566ed6f250aa"}, {"time": "20:40", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2145.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=711a757e8ff7af39a5f51111638a3062f6b947fafb26e5791dd4b7035154cc1b"}, {"time": "20:50", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2150.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=48b4605d9460754cf4269166a120e17224229f6095e8269ad4d537b72e36a81c"}, {"time": "20:50", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2155.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=edb01fd18886c901abb3bf6860fee3471c212c3bed2b7768c676d13c2f6c5171"}, {"time": "21:00", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2200.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=ef66a3b82dca847460ac31e72495464a12cbd62ba530839c33be2a06c8cb6864"}, {"time": "21:00", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2205.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=de932edf541510f8a48212be07612e4b3a9ecf0e1d9c776f5e35582918645917"}, {"time": "21:10", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2210.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=055f30a620f2917cea5bbd084f7abfdf53eb1f458039eb0ea11b137a7450c9e2"}, {"time": "21:10", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2215.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=78ae27841ca09bc3cb37a09c54cfea404131722364c489529e760d505059e55d"}, {"time": "21:20", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2220.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=f1f6c74f254a412128581418cf7296bd2a60b930f99124aed39df456893a0801"}, {"time": "21:20", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2225.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=c79d7a1ef80c120235d7689c7361e279cc0577265a3fcdfb79ec38c2b81e4402"}, {"time": "21:30", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2230.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=4fd943bc751bcbf1a77171d2289f7dbabf42bdc875420234be65edef1733d965"}, {"time": "21:30", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2235.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=fd290eb436b0bb7e65b6abcbdfb18e534bc7e18aa35a94d3bbec7ff117c5eb9e"}, {"time": "21:40", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2245.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=ae55fe733d5f4f034409ea97c4d06175f36eab7db3659e9bdf66fe15074b1555"}, {"time": "21:40", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2240.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=192a8aff375e4cf3418ff2e27397499dbe3876fdc16d2dc074661ec6095cfed1"}, {"time": "21:50", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2250.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=7a933406d848e066a7c4a0fdf2d88693daed3f180245eff16232bbc9a6f42055"}, {"time": "21:50", "url": "https://b0cfec20769ed181ccbf0a8a989280e4.r2.cloudflarestorage.com/wxr/radar/SIN/2026/01/30/2255.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0e6bb644b67ac10ddba6b8888f62cae4%2F20260131%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260131T182201Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=9a52eacdfd6373d781dc21621ffe9d2647b07e6d0021a014c99129fe948fbc95"}]};
-        const stationConfig = {"JAK": {"tl": ["-3.9237287198122797", "104.39898771981228"], "br": ["-8.418959280187721", "108.89421828018772"], "name": "Tangerang"}, "YOG": {"tl": ["-5.484038019812279", "108.10668631981227"], "br": ["-9.979268580187721", "112.6019168801877"], "name": "Yogyakarta"}, "SBY": {"tl": ["-5.162649719812278", "110.51281671981229"], "br": ["-9.657880280187719", "115.00804728018772"], "name": "Surabaya"}, "DEN": {"tl": ["-6.491549719812279", "112.93123971981228"], "br": ["-10.98678028018772", "117.42647028018771"], "name": "Denpasar"}, "BTH": {"tl": ["3.3724162801877204", "101.86413971981229"], "br": ["-1.1228142801877208", "106.35937028018772"], "name": "Batam"}, "BAL": {"tl": ["0.9878822801877207", "114.64938471981229"], "br": ["-3.5073482801877205", "119.14461528018772"], "name": "Balikpapan"}, "MAK": {"tl": ["-2.81493071981227", "117.283405719812"], "br": ["-7.31016128018772", "121.778636280187"], "name": "Makassar"}, "MED": {"tl": ["5.787323280187721", "96.38955071981229"], "br": ["1.2920927198122794", "100.88478128018772"], "name": "Medan"}, "SIN": {"tl": ["3.5182160000000003", "101.8125000000000000"], "br": ["-0.8198160000000003", "106.1285000000000000"], "name": "Singapore"}};
-        
-        let map = L.map('map').setView([-6.2, 106.8], 8);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO'
-        }).addTo(map);
+        const CONFIG = {"STATION_CONFIG": {"JAK": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-3.9237287198122797", "104.39898771981228"], "overlayBRC": ["-8.418959280187721", "108.89421828018772"], "Kota": "Tangerang", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Jakarta/CMAX/JAK", "kode": "JAK"}, "YOG": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-5.484038019812279", "108.10668631981227"], "overlayBRC": ["-9.979268580187721", "112.6019168801877"], "Kota": "Yogyakarta", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Yogyakarta/CMAX/YOG", "kode": "YOG"}, "SBY": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-5.162649719812278", "110.51281671981229"], "overlayBRC": ["-9.657880280187719", "115.00804728018772"], "Kota": "Surabaya", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Surabaya/CMAX/SBY", "kode": "SBY"}, "DEN": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-6.491549719812279", "112.93123971981228"], "overlayBRC": ["-10.98678028018772", "117.42647028018771"], "Kota": "Denpasar", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Denpasar/CMAX/DEN", "kode": "DEN"}, "BTH": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["3.3724162801877204", "101.86413971981229"], "overlayBRC": ["-1.1228142801877208", "106.35937028018772"], "Kota": "Batam", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Batam/CMAX/BTH", "kode": "BTH"}, "BAL": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["0.9878822801877207", "114.64938471981229"], "overlayBRC": ["-3.5073482801877205", "119.14461528018772"], "Kota": "Balikpapan", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Balikpapan/CMAX/BAL", "kode": "BAL"}, "MAK": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-2.81493071981227", "117.283405719812"], "overlayBRC": ["-7.31016128018772", "121.778636280187"], "Kota": "Makassar", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=MakassarXBAND/CMAX/MAK", "kode": "MAK"}, "MED": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["5.787323280187721", "96.38955071981229"], "overlayBRC": ["1.2920927198122794", "100.88478128018772"], "Kota": "Medan", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Medan/CMAX/MED", "kode": "MED"}, "SIN": {"timezone_offset": -1, "url_pattern": "dpsri-prefix", "extension": ".dpsri.png", "overlayTLC": ["3.5182160000000003", "101.8125000000000000"], "overlayBRC": ["-0.8198160000000003", "106.1285000000000000"], "Kota": "Singapore", "base_url": "https://www.weather.gov.sg/files/rainarea/240km/dpsri_240km_", "kode": "SIN"}}, "AVAILABLE_DAYS": ["2025-09-30", "2025-10-01", "2025-10-02", "2025-10-03", "2025-10-04", "2025-10-05", "2025-10-06", "2025-10-07", "2025-10-08", "2025-10-09", "2025-10-10", "2025-10-11", "2025-10-12", "2025-10-13", "2025-10-14", "2025-10-15", "2025-10-16", "2025-10-17", "2025-10-18", "2025-10-19", "2025-10-20", "2025-10-21", "2025-10-22", "2025-10-23", "2025-10-24", "2025-10-25", "2025-10-26", "2025-10-27", "2025-10-28", "2025-10-29", "2025-10-30", "2025-10-31", "2025-11-01", "2025-11-02", "2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06", "2025-11-07", "2025-11-08", "2025-11-09", "2025-11-10", "2025-11-11", "2025-11-12", "2025-11-13", "2025-11-14", "2025-11-15", "2025-11-16", "2025-11-17", "2025-11-18", "2025-11-19", "2025-11-20", "2025-11-21", "2025-11-22", "2025-11-23", "2025-11-24", "2025-11-25", "2025-11-26", "2025-11-27", "2025-11-28", "2025-11-29", "2025-11-30", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-06", "2025-12-07", "2025-12-08", "2025-12-09", "2025-12-10", "2025-12-11", "2025-12-12", "2025-12-13", "2025-12-14", "2025-12-15", "2025-12-16", "2025-12-17", "2025-12-18", "2025-12-19", "2025-12-20", "2025-12-21", "2025-12-22", "2025-12-23", "2025-12-24", "2025-12-25", "2025-12-26", "2025-12-27", "2025-12-28", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-10", "2026-01-11", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-17", "2026-01-18", "2026-01-19", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-24", "2026-01-25", "2026-01-26", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30", "2026-02-01"], "STATION_MONTHS": {"BAL": ["202510", "202511", "202512", "202601"], "BTH": ["202510", "202511", "202512", "202601"], "DEN": ["202510", "202511", "202512", "202601"], "JAK": ["202510", "202511", "202512", "202601"], "MAK": ["202510"], "MED": ["202510", "202511", "202512", "202601"], "SBY": ["202510", "202511", "202512", "202601"], "SIN": ["202510", "202511", "202512", "202601", "202602"], "UNKNOWN": ["202509", "202510"], "YOG": ["202510", "202511", "202512", "202601"]}, "INITIAL_CENTER": [-2.5, 118], "INITIAL_ZOOM": 5};
+        let state = { map: null, overlays: new Map(), frames: [], index: 0, isPlaying: false, timer: null, activeStations: ['JAK', 'SBY', 'BAL', 'DEN'], cache: new Map(), bufferRadius: 15 };
 
-        let currentOverlay = null; // TRACK THE CURRENT IMAGE
-        let currentStation = 'JAK';
-        let isPlaying = false;
-        let currentIndex = 0;
-        let timer = null;
-
-        const select = document.getElementById('stationSelect');
-        for(let s in stationConfig) {
-            let opt = document.createElement('option');
-            opt.value = s;
-            opt.text = stationConfig[s].name;
-            select.add(opt);
+        function init() {
+            state.map = L.map('map').setView(CONFIG.INITIAL_CENTER, CONFIG.INITIAL_ZOOM);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CARTO' }).addTo(state.map);
+            initUI();
+            const months = getUniqueMonths();
+            if(months.length) {
+                document.getElementById('month-select').value = months[0];
+                populateDays(months[0]);
+            }
         }
 
-        function changeStation() {
-            currentStation = select.value;
-            currentIndex = radarData[currentStation] ? radarData[currentStation].length - 1 : 0;
-            updateMap();
+        function getUniqueMonths() {
+            const m = new Set(CONFIG.AVAILABLE_DAYS.map(d => d.substring(0, 7))); 
+            return Array.from(m).sort().reverse();
         }
 
-        function updateMap() {
-            let frames = radarData[currentStation];
-            if(!frames || frames.length === 0) return;
+        function initUI() {
+            const monthSel = document.getElementById('month-select');
+            getUniqueMonths().forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.text = new Date(m + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                monthSel.add(opt);
+            });
+            monthSel.onchange = (e) => populateDays(e.target.value);
+
+            document.getElementById('day-select').onchange = (e) => loadDay(e.target.value);
+
+            const stContainer = document.getElementById('stations');
+            Object.keys(CONFIG.STATION_CONFIG).forEach(code => {
+                const div = document.createElement('div');
+                div.className = 'station-toggle';
+                div.innerHTML = `<input type="checkbox" value="${code}" ${state.activeStations.includes(code) ? 'checked' : ''}> ${code}`;
+                div.querySelector('input').onchange = (e) => {
+                    if(e.target.checked) state.activeStations.push(code);
+                    else state.activeStations = state.activeStations.filter(c => c !== code);
+                    loadDay(document.getElementById('day-select').value); 
+                };
+                stContainer.appendChild(div);
+            });
+
+            document.getElementById('time-slider').oninput = (e) => showFrame(parseInt(e.target.value));
+            document.getElementById('play-btn').onclick = togglePlay;
+        }
+
+        function populateDays(monthStr) {
+            const daySel = document.getElementById('day-select');
+            daySel.innerHTML = '';
+            const days = CONFIG.AVAILABLE_DAYS.filter(d => d.startsWith(monthStr)).sort().reverse();
+            days.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.text = d.split('-')[2];
+                daySel.add(opt);
+            });
+            if(days.length) loadDay(days[0]);
+        }
+
+        async function loadDay(dateStr) {
+            if(!dateStr) return;
+            showLoading(true);
+            const [y, m] = dateStr.split('-');
+            const monthKey = y + m;
             
-            let frame = frames[currentIndex];
-            let cfg = stationConfig[currentStation];
+            const promises = state.activeStations.map(async code => {
+                if(!CONFIG.STATION_MONTHS[code]?.includes(monthKey)) return [];
+                try {
+                    const res = await fetch(`data/${code}_${monthKey}.json`);
+                    if(!res.ok) return [];
+                    const data = await res.json();
+                    return data.filter(item => item.time.startsWith(dateStr)).map(i => ({...i, s: code}));
+                } catch (e) { return []; }
+            });
 
-            // --- THE FIX: REMOVE OLD LAYER BEFORE ADDING NEW ONE ---
-            if(currentOverlay) {
-                map.removeLayer(currentOverlay);
+            const results = await Promise.all(promises);
+            const allFrames = results.flat();
+
+            const timeMap = new Map();
+            allFrames.forEach(f => {
+                if(!timeMap.has(f.time)) timeMap.set(f.time, { time: f.time, stations: [] });
+                timeMap.get(f.time).stations.push(f);
+            });
+
+            state.frames = Array.from(timeMap.values()).sort((a,b) => a.time.localeCompare(b.time));
+            state.cache.clear();
+            
+            if (state.frames.length === 0) {
+                document.getElementById('timestamp').innerText = "No Data";
+                state.overlays.forEach(l => state.map.removeLayer(l));
+                state.overlays.clear();
+                showLoading(false);
+                return;
             }
 
-            let bounds = [cfg.tl, cfg.br];
-            currentOverlay = L.imageOverlay(frame.url, bounds, {opacity: 0.8}).addTo(map);
-            
-            document.getElementById('timeDisplay').innerText = frame.time;
-            document.getElementById('timeline').max = frames.length - 1;
-            document.getElementById('timeline').value = currentIndex;
-            
-            // Optional: Auto-pan to new station location
-            // map.flyTo([(parseFloat(cfg.tl[0]) + parseFloat(cfg.br[0]))/2, (parseFloat(cfg.tl[1]) + parseFloat(cfg.br[1]))/2], 8);
+            document.getElementById('time-slider').max = state.frames.length - 1;
+            document.getElementById('time-slider').value = 0;
+            showFrame(0);
+            showLoading(false);
+        }
+
+        function showFrame(index) {
+            state.index = index;
+            const frame = state.frames[index];
+            if(!frame) return;
+
+            document.getElementById('timestamp').innerText = frame.time.replace('T', ' ').substring(0, 16);
+            document.getElementById('time-slider').value = index;
+
+            // FIX: REMOVE OLD OVERLAYS
+            state.overlays.forEach(l => state.map.removeLayer(l));
+            state.overlays.clear();
+
+            frame.stations.forEach(st => {
+                const cfg = CONFIG.STATION_CONFIG[st.s];
+                const bounds = [[cfg.overlayBRC[0], cfg.overlayBRC[1]], [cfg.overlayTLC[0], cfg.overlayTLC[1]]];
+                const overlay = L.imageOverlay(st.url, bounds, { opacity: 0.8 }).addTo(state.map);
+                state.overlays.set(st.s, overlay);
+            });
+
+            preload(index);
+        }
+
+        function preload(currIdx) {
+            const end = Math.min(state.frames.length, currIdx + state.bufferRadius);
+            for(let i=currIdx; i<end; i++) {
+                state.frames[i].stations.forEach(st => {
+                    if(!state.cache.has(st.url)) {
+                        const img = new Image();
+                        img.src = st.url;
+                        state.cache.set(st.url, img);
+                    }
+                });
+            }
         }
 
         function togglePlay() {
-            if(isPlaying) {
-                clearInterval(timer);
-                isPlaying = false;
+            state.isPlaying = !state.isPlaying;
+            document.getElementById('play-btn').innerText = state.isPlaying ? '⏸ Pause' : '▶ Play';
+            
+            if(state.isPlaying) {
+                state.timer = setInterval(() => {
+                    let next = state.index + 1;
+                    if(next >= state.frames.length) next = 0;
+                    showFrame(next);
+                }, 500);
             } else {
-                isPlaying = true;
-                timer = setInterval(() => {
-                    if (!radarData[currentStation]) return;
-                    currentIndex++;
-                    if(currentIndex >= radarData[currentStation].length) currentIndex = 0;
-                    updateMap();
-                }, 500); 
+                clearInterval(state.timer);
             }
         }
 
-        function scrub(val) {
-            currentIndex = parseInt(val);
-            updateMap();
+        function showLoading(show) {
+            document.getElementById('loading-fill').style.width = show ? '50%' : '100%';
+            setTimeout(() => {
+                if(!show) document.getElementById('loading-fill').style.width = '0%';
+            }, 200);
         }
 
-        // Start
-        changeStation();
+        init();
     </script>
 </body>
 </html>
-    
