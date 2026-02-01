@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Compare</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #1a1a1a; color: #fff; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #container { display: flex; flex: 1; }
+        .map-pane { flex: 1; border-right: 1px solid #444; position: relative; }
+        #controls { background: #222; padding: 10px; border-bottom: 1px solid #444; display: flex; gap: 15px; align-items: center; z-index: 999; }
+        .control-group { display: flex; flex-direction: column; gap: 2px; }
+        label { font-size: 10px; color: #aaa; font-weight: bold; text-transform: uppercase; }
+        select, input[type="date"] { background: #333; color: white; border: 1px solid #555; padding: 4px; border-radius: 4px; }
+        button { background: #333; color: white; border: 1px solid #555; padding: 5px 15px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #444; }
+        #time-slider { flex: 1; accent-color: #4ade80; }
+        #clock-display { font-family: monospace; font-size: 14px; color: #4ade80; min-width: 120px; text-align: center; }
+        .map-label { position: absolute; top: 10px; left: 50px; z-index: 1000; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; pointer-events: none; }
+        #stations { display: flex; gap: 8px; }
+        .back-link { color: #888; text-decoration: none; margin-right: 15px; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <a href="index.html" class="back-link">⬅</a>
+        
+        <div class="control-group" style="border-right: 1px solid #444; padding-right: 10px;">
+            <label>Left Period Start</label>
+            <input type="date" id="date-left">
+        </div>
+
+        <div class="control-group" style="border-right: 1px solid #444; padding-right: 10px;">
+            <label>Right Period Start</label>
+            <input type="date" id="date-right">
+        </div>
+
+        <div class="control-group">
+            <label>Duration</label>
+            <select id="duration-select">
+                <option value="1">24 Hours</option>
+                <option value="3">3 Days</option>
+                <option value="7">7 Days</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>Stations</label>
+            <div id="stations"></div>
+        </div>
+
+        <button id="load-btn" style="background: #2563eb;">Load Data</button>
+
+        <div style="flex: 0.5;"></div>
+        
+        <button id="play-btn">▶</button>
+        <input type="range" id="time-slider" min="0" max="143" value="0"> <div id="clock-display">+00h 00m</div>
+    </div>
+
+    <div id="container">
+        <div id="map-left" class="map-pane">
+            <div class="map-label" id="label-left">Select Date</div>
+        </div>
+        <div id="map-right" class="map-pane">
+            <div class="map-label" id="label-right">Select Date</div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script>
+        const CONFIG = {"STATION_CONFIG": {"JAK": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-3.9237287198122797", "104.39898771981228"], "overlayBRC": ["-8.418959280187721", "108.89421828018772"], "Kota": "Tangerang", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Jakarta/CMAX/JAK", "kode": "JAK"}, "YOG": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-5.484038019812279", "108.10668631981227"], "overlayBRC": ["-9.979268580187721", "112.6019168801877"], "Kota": "Yogyakarta", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Yogyakarta/CMAX/YOG", "kode": "YOG"}, "SBY": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-5.162649719812278", "110.51281671981229"], "overlayBRC": ["-9.657880280187719", "115.00804728018772"], "Kota": "Surabaya", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Surabaya/CMAX/SBY", "kode": "SBY"}, "DEN": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-6.491549719812279", "112.93123971981228"], "overlayBRC": ["-10.98678028018772", "117.42647028018771"], "Kota": "Denpasar", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Denpasar/CMAX/DEN", "kode": "DEN"}, "BTH": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["3.3724162801877204", "101.86413971981229"], "overlayBRC": ["-1.1228142801877208", "106.35937028018772"], "Kota": "Batam", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Batam/CMAX/BTH", "kode": "BTH"}, "BAL": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["0.9878822801877207", "114.64938471981229"], "overlayBRC": ["-3.5073482801877205", "119.14461528018772"], "Kota": "Balikpapan", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Balikpapan/CMAX/BAL", "kode": "BAL"}, "MAK": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["-2.81493071981227", "117.283405719812"], "overlayBRC": ["-7.31016128018772", "121.778636280187"], "Kota": "Makassar", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=MakassarXBAND/CMAX/MAK", "kode": "MAK"}, "MED": {"timezone_offset": 7, "url_pattern": "split-hyphen", "extension": ".png", "overlayTLC": ["5.787323280187721", "96.38955071981229"], "overlayBRC": ["1.2920927198122794", "100.88478128018772"], "Kota": "Medan", "base_url": "https://api-apps.bmkg.go.id/api/radar/raster?path=Medan/CMAX/MED", "kode": "MED"}, "SIN": {"timezone_offset": -1, "url_pattern": "dpsri-prefix", "extension": ".dpsri.png", "overlayTLC": ["3.5182160000000003", "101.8125000000000000"], "overlayBRC": ["-0.8198160000000003", "106.1285000000000000"], "Kota": "Singapore", "base_url": "https://www.weather.gov.sg/files/rainarea/240km/dpsri_240km_", "kode": "SIN"}}, "AVAILABLE_DAYS": ["2025-09-30", "2025-10-01", "2025-10-02", "2025-10-03", "2025-10-04", "2025-10-05", "2025-10-06", "2025-10-07", "2025-10-08", "2025-10-09", "2025-10-10", "2025-10-11", "2025-10-12", "2025-10-13", "2025-10-14", "2025-10-15", "2025-10-16", "2025-10-17", "2025-10-18", "2025-10-19", "2025-10-20", "2025-10-21", "2025-10-22", "2025-10-23", "2025-10-24", "2025-10-25", "2025-10-26", "2025-10-27", "2025-10-28", "2025-10-29", "2025-10-30", "2025-10-31", "2025-11-01", "2025-11-02", "2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06", "2025-11-07", "2025-11-08", "2025-11-09", "2025-11-10", "2025-11-11", "2025-11-12", "2025-11-13", "2025-11-14", "2025-11-15", "2025-11-16", "2025-11-17", "2025-11-18", "2025-11-19", "2025-11-20", "2025-11-21", "2025-11-22", "2025-11-23", "2025-11-24", "2025-11-25", "2025-11-26", "2025-11-27", "2025-11-28", "2025-11-29", "2025-11-30", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-06", "2025-12-07", "2025-12-08", "2025-12-09", "2025-12-10", "2025-12-11", "2025-12-12", "2025-12-13", "2025-12-14", "2025-12-15", "2025-12-16", "2025-12-17", "2025-12-18", "2025-12-19", "2025-12-20", "2025-12-21", "2025-12-22", "2025-12-23", "2025-12-24", "2025-12-25", "2025-12-26", "2025-12-27", "2025-12-28", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-10", "2026-01-11", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-17", "2026-01-18", "2026-01-19", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-24", "2026-01-25", "2026-01-26", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30", "2026-01-31", "2026-02-01"], "STATION_MONTHS": {"BAL": ["202510", "202511", "202512", "202601", "202602"], "BTH": ["202510", "202511", "202512", "202601", "202602"], "DEN": ["202510", "202511", "202512", "202601", "202602"], "JAK": ["202510", "202511", "202512", "202601", "202602"], "MAK": ["202510", "202601", "202602"], "MED": ["202510", "202511", "202512", "202601", "202602"], "SBY": ["202510", "202511", "202512", "202601", "202602"], "SIN": ["202510", "202511", "202512", "202601", "202602"], "UNKNOWN": ["202509", "202510"], "YOG": ["202510", "202511", "202512", "202601", "202602"]}, "INITIAL_CENTER": [-2.5, 118], "INITIAL_ZOOM": 5};
+        
+        // State
+        let maps = { left: null, right: null };
+        let overlays = { left: new Map(), right: new Map() };
+        let dataCache = { left: [], right: [] }; // Array of frame objects
+        let activeStations = ['JAK', 'SBY'];
+        let isPlaying = false;
+        let playTimer = null;
+        let totalSteps = 144; // Default 24h * 6 slots/hr
+        
+        function init() {
+            // Init Maps
+            maps.left = L.map('map-left', { zoomControl: false }).setView(CONFIG.INITIAL_CENTER, CONFIG.INITIAL_ZOOM);
+            maps.right = L.map('map-right', { zoomControl: false }).setView(CONFIG.INITIAL_CENTER, CONFIG.INITIAL_ZOOM);
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(maps.left);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(maps.right);
+
+            // Sync Logic (The Mirror Effect)
+            function syncMaps(source, target) {
+                source.on('move', () => {
+                    if(source.isSyncing) return; // Prevent loop
+                    target.isSyncing = true;
+                    target.setView(source.getCenter(), source.getZoom(), { animate: false });
+                    target.isSyncing = false;
+                });
+            }
+            syncMaps(maps.left, maps.right);
+            syncMaps(maps.right, maps.left);
+
+            // Init UI
+            initStations();
+            
+            // Set Default Dates (Yesterday vs Day Before)
+            const days = CONFIG.AVAILABLE_DAYS;
+            if(days.length > 1) {
+                document.getElementById('date-left').value = days[days.length-2];
+                document.getElementById('date-right').value = days[days.length-1];
+            }
+
+            document.getElementById('load-btn').onclick = loadData;
+            document.getElementById('play-btn').onclick = togglePlay;
+            document.getElementById('time-slider').oninput = (e) => updateFrame(parseInt(e.target.value));
+            document.getElementById('duration-select').onchange = () => {
+                // Recalculate slider steps
+                const days = parseInt(document.getElementById('duration-select').value);
+                totalSteps = days * 24 * 6; // 6 slots per hour
+                document.getElementById('time-slider').max = totalSteps - 1;
+                loadData();
+            };
+            
+            // Initial Load
+            loadData();
+        }
+
+        function initStations() {
+            const container = document.getElementById('stations');
+            Object.keys(CONFIG.STATION_CONFIG).forEach(code => {
+                const label = document.createElement('label');
+                label.style.display = 'flex';
+                label.style.alignItems = 'center';
+                label.style.gap = '4px';
+                label.innerHTML = `<input type="checkbox" value="${code}" ${activeStations.includes(code) ? 'checked' : ''}> ${code}`;
+                label.querySelector('input').onchange = (e) => {
+                    if(e.target.checked) activeStations.push(code);
+                    else activeStations = activeStations.filter(c => c !== code);
+                    loadData();
+                };
+                container.appendChild(label);
+            });
+        }
+
+        async function loadData() {
+            const startL = document.getElementById('date-left').value;
+            const startR = document.getElementById('date-right').value;
+            const durationDays = parseInt(document.getElementById('duration-select').value);
+
+            if(!startL || !startR) return;
+
+            document.getElementById('label-left').innerText = `${startL} (Loading...)`;
+            document.getElementById('label-right').innerText = `${startR} (Loading...)`;
+
+            // Fetch Data for both periods
+            // We need to fetch ALL JSON shards that cover the period
+            dataCache.left = await fetchPeriod(startL, durationDays);
+            dataCache.right = await fetchPeriod(startR, durationDays);
+
+            document.getElementById('label-left').innerText = `${startL} (${durationDays} Days)`;
+            document.getElementById('label-right').innerText = `${startR} (${durationDays} Days)`;
+
+            updateFrame(0);
+        }
+
+        async function fetchPeriod(startDateStr, days) {
+            const frames = [];
+            const start = moment(startDateStr);
+            const end = moment(startDateStr).add(days, 'days');
+            
+            // Identify which months we need (e.g., 202601, 202602)
+            const requiredMonths = new Set();
+            let curr = start.clone();
+            while(curr.isBefore(end)) {
+                requiredMonths.add(curr.format('YYYYMM'));
+                curr.add(1, 'month');
+            }
+
+            // Fetch JSONs for active stations
+            const promises = [];
+            activeStations.forEach(st => {
+                requiredMonths.forEach(m => {
+                    if(CONFIG.STATION_MONTHS[st]?.includes(m)) {
+                        promises.push(
+                            fetch(`data/${st}_${m}.json`)
+                                .then(r => r.ok ? r.json() : [])
+                                .then(data => data.map(d => ({...d, s: st})))
+                                .catch(() => [])
+                        );
+                    }
+                });
+            });
+
+            const results = await Promise.all(promises);
+            const allRaw = results.flat();
+
+            // Filter by strict time range
+            return allRaw.filter(f => {
+                const t = moment(f.time);
+                return t.isSameOrAfter(start) && t.isBefore(end);
+            });
+        }
+
+        function updateFrame(stepIndex) {
+            // Calculate relative time offset in minutes
+            const minutesOffset = stepIndex * 10;
+            
+            // Update Clock Display
+            const h = Math.floor(minutesOffset / 60);
+            const m = minutesOffset % 60;
+            document.getElementById('clock-display').innerText = `+${h}h ${m}m`;
+
+            // Render Both Maps
+            renderMap('left', document.getElementById('date-left').value, minutesOffset);
+            renderMap('right', document.getElementById('date-right').value, minutesOffset);
+        }
+
+        function renderMap(side, startDateStr, minutesOffset) {
+            const map = maps[side];
+            const targetTime = moment(startDateStr).add(minutesOffset, 'minutes');
+            
+            // Clear current overlays
+            overlays[side].forEach(l => map.removeLayer(l));
+            overlays[side].clear();
+
+            // Find matching frames for this exact 10-minute slot
+            // Since our data is strictly 10-min aligned, we just look for exact string match
+            const targetISO = targetTime.format('YYYY-MM-DDTHH:mm:00') + 'Z';
+            
+            // Find frames in cache
+            const relevantFrames = dataCache[side].filter(f => f.time === targetISO);
+
+            relevantFrames.forEach(f => {
+                const cfg = CONFIG.STATION_CONFIG[f.s];
+                const bounds = [[cfg.overlayBRC[0], cfg.overlayBRC[1]], [cfg.overlayTLC[0], cfg.overlayTLC[1]]];
+                const layer = L.imageOverlay(f.url, bounds, { opacity: 0.8 }).addTo(map);
+                overlays[side].set(f.s, layer);
+            });
+            
+            // Update Label to show specific time being rendered
+            document.getElementById(`label-${side}`).innerText = targetTime.format('MMM DD, HH:mm');
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            document.getElementById('play-btn').innerText = isPlaying ? '⏸' : '▶';
+            
+            if(isPlaying) {
+                playTimer = setInterval(() => {
+                    let val = parseInt(document.getElementById('time-slider').value);
+                    if(val >= totalSteps - 1) val = -1;
+                    document.getElementById('time-slider').value = val + 1;
+                    updateFrame(val + 1);
+                }, 500);
+            } else {
+                clearInterval(playTimer);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -19,6 +19,8 @@
         input[type="range"] { width: 200px; accent-color: #4ade80; }
         #loading-bar { height: 3px; background: transparent; width: 100%; position: absolute; top: 0; left: 0; z-index: 999; }
         #loading-fill { height: 100%; background: #4ade80; width: 0%; transition: width 0.2s; }
+        .nav-link { margin-left: auto; font-size: 12px; color: #4ade80; text-decoration: none; border: 1px solid #4ade80; padding: 5px 10px; border-radius: 4px; }
+        .nav-link:hover { background: #4ade80; color: #1a1a1a; }
     </style>
 </head>
 <body>
@@ -36,10 +38,10 @@
             <label>Stations</label>
             <div id="stations"></div>
         </div>
-        <div style="flex:1"></div>
         <div id="timestamp">--:--</div>
         <button id="play-btn">▶ Play</button>
         <input type="range" id="time-slider" min="0" max="0" value="0">
+        <a href="compare.html" class="nav-link">⇄ Compare Mode</a>
     </div>
     <div id="map"></div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -122,20 +124,16 @@
             const results = await Promise.all(promises);
             const allFrames = results.flat();
             
-            // === FIX: DEDUPLICATION SAFETY NET ===
-            // This groups frames by time, but inside each time, ensures a station only appears once.
-            // If the JSON still has duplicates, this cleans them up for the viewer.
             const timeMap = new Map();
             allFrames.forEach(f => {
                 if(!timeMap.has(f.time)) timeMap.set(f.time, { time: f.time, stations: new Map() });
-                timeMap.get(f.time).stations.set(f.s, f); // Using Map overwrites duplicates by station code
+                timeMap.get(f.time).stations.set(f.s, f);
             });
 
             state.frames = Array.from(timeMap.values()).map(f => ({
                 time: f.time,
                 stations: Array.from(f.stations.values()) 
             })).sort((a,b) => a.time.localeCompare(b.time));
-            // =====================================
 
             state.cache.clear();
             
