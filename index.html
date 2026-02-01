@@ -121,13 +121,22 @@
 
             const results = await Promise.all(promises);
             const allFrames = results.flat();
+            
+            // === FIX: DEDUPLICATION SAFETY NET ===
+            // This groups frames by time, but inside each time, ensures a station only appears once.
+            // If the JSON still has duplicates, this cleans them up for the viewer.
             const timeMap = new Map();
             allFrames.forEach(f => {
-                if(!timeMap.has(f.time)) timeMap.set(f.time, { time: f.time, stations: [] });
-                timeMap.get(f.time).stations.push(f);
+                if(!timeMap.has(f.time)) timeMap.set(f.time, { time: f.time, stations: new Map() });
+                timeMap.get(f.time).stations.set(f.s, f); // Using Map overwrites duplicates by station code
             });
 
-            state.frames = Array.from(timeMap.values()).sort((a,b) => a.time.localeCompare(b.time));
+            state.frames = Array.from(timeMap.values()).map(f => ({
+                time: f.time,
+                stations: Array.from(f.stations.values()) 
+            })).sort((a,b) => a.time.localeCompare(b.time));
+            // =====================================
+
             state.cache.clear();
             
             if (state.frames.length === 0) {
