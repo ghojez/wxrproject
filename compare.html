@@ -80,6 +80,7 @@
         let isPlaying = false;
         let playTimer = null;
         let totalSteps = 144; // Default 24h * 6 slots/hr
+        let imageCache = new Map(); // Global Image Cache for Preloading
         
         function init() {
             // Init Maps
@@ -114,13 +115,7 @@
             document.getElementById('load-btn').onclick = loadData;
             document.getElementById('play-btn').onclick = togglePlay;
             document.getElementById('time-slider').oninput = (e) => updateFrame(parseInt(e.target.value));
-            document.getElementById('duration-select').onchange = () => {
-                // Recalculate slider steps
-                const days = parseInt(document.getElementById('duration-select').value);
-                totalSteps = days * 24 * 6; // 6 slots per hour
-                document.getElementById('time-slider').max = totalSteps - 1;
-                loadData();
-            };
+            document.getElementById('duration-select').onchange = loadData;
             
             // Initial Load
             loadData();
@@ -150,18 +145,31 @@
 
             if(!startL || !startR) return;
 
+            // SETUP TIME RANGE (06:00 - 22:00 Restriction)
+            if (durationDays === 1) {
+                // Start at 06:00 (Index 36) -> End at 22:00 (Index 132)
+                document.getElementById('time-slider').min = 36;
+                document.getElementById('time-slider').max = 132;
+                document.getElementById('time-slider').value = 36;
+                totalSteps = 132;
+            } else {
+                document.getElementById('time-slider').min = 0;
+                document.getElementById('time-slider').max = (durationDays * 144) - 1;
+                document.getElementById('time-slider').value = 0;
+                totalSteps = (durationDays * 144) - 1;
+            }
+
             document.getElementById('label-left').innerText = `${startL} (Loading...)`;
             document.getElementById('label-right').innerText = `${startR} (Loading...)`;
 
             // Fetch Data for both periods
-            // We need to fetch ALL JSON shards that cover the period
             dataCache.left = await fetchPeriod(startL, durationDays);
             dataCache.right = await fetchPeriod(startR, durationDays);
 
-            document.getElementById('label-left').innerText = `${startL} (${durationDays} Days)`;
-            document.getElementById('label-right').innerText = `${startR} (${durationDays} Days)`;
+            document.getElementById('label-left').innerText = `${startL}`;
+            document.getElementById('label-right').innerText = `${startR}`;
 
-            updateFrame(0);
+            updateFrame(parseInt(document.getElementById('time-slider').value));
         }
 
         async function fetchPeriod(startDateStr, days) {
@@ -169,7 +177,7 @@
             const start = moment(startDateStr);
             const end = moment(startDateStr).add(days, 'days');
             
-            // Identify which months we need (e.g., 202601, 202602)
+            // Identify which months we need
             const requiredMonths = new Set();
             let curr = start.clone();
             while(curr.isBefore(end)) {
@@ -177,7 +185,7 @@
                 curr.add(1, 'month');
             }
 
-            // Fetch JSONs for active stations
+            // Fetch JSONs
             const promises = [];
             activeStations.forEach(st => {
                 requiredMonths.forEach(m => {
@@ -195,7 +203,6 @@
             const results = await Promise.all(promises);
             const allRaw = results.flat();
 
-            // Filter by strict time range
             return allRaw.filter(f => {
                 const t = moment(f.time);
                 return t.isSameOrAfter(start) && t.isBefore(end);
@@ -203,43 +210,77 @@
         }
 
         function updateFrame(stepIndex) {
-            // Calculate relative time offset in minutes
             const minutesOffset = stepIndex * 10;
             
-            // Update Clock Display
-            const h = Math.floor(minutesOffset / 60);
-            const m = minutesOffset % 60;
-            document.getElementById('clock-display').innerText = `+${h}h ${m}m`;
+            // Update Clock
+            const durationDays = parseInt(document.getElementById('duration-select').value);
+            let displayTime = "";
+            
+            if (durationDays === 1) {
+                 const h = Math.floor(minutesOffset / 60);
+                 const m = minutesOffset % 60;
+                 displayTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            } else {
+                 const d = Math.floor(minutesOffset / (60*24));
+                 const h = Math.floor((minutesOffset % (60*24)) / 60);
+                 displayTime = `Day ${d+1}, ${h}h`;
+            }
+            document.getElementById('clock-display').innerText = displayTime;
 
-            // Render Both Maps
             renderMap('left', document.getElementById('date-left').value, minutesOffset);
             renderMap('right', document.getElementById('date-right').value, minutesOffset);
+            
+            // TRIGGER PRELOAD
+            preloadNext(stepIndex, 10);
         }
 
         function renderMap(side, startDateStr, minutesOffset) {
             const map = maps[side];
             const targetTime = moment(startDateStr).add(minutesOffset, 'minutes');
             
-            // Clear current overlays
             overlays[side].forEach(l => map.removeLayer(l));
             overlays[side].clear();
 
-            // Find matching frames for this exact 10-minute slot
-            // Since our data is strictly 10-min aligned, we just look for exact string match
             const targetISO = targetTime.format('YYYY-MM-DDTHH:mm:00') + 'Z';
-            
-            // Find frames in cache
             const relevantFrames = dataCache[side].filter(f => f.time === targetISO);
 
             relevantFrames.forEach(f => {
                 const cfg = CONFIG.STATION_CONFIG[f.s];
                 const bounds = [[cfg.overlayBRC[0], cfg.overlayBRC[1]], [cfg.overlayTLC[0], cfg.overlayTLC[1]]];
-                const layer = L.imageOverlay(f.url, bounds, { opacity: 0.8 }).addTo(map);
+                const layer = L.imageOverlay(f.url, bounds, { opacity: 0.7 }).addTo(map); // OPACITY 0.7
                 overlays[side].set(f.s, layer);
             });
             
-            // Update Label to show specific time being rendered
-            document.getElementById(`label-${side}`).innerText = targetTime.format('MMM DD, HH:mm');
+            // UPDATE LABEL WITH DAY NAME
+            document.getElementById(`label-${side}`).innerText = targetTime.format('dddd, MMM DD, HH:mm');
+        }
+
+        // === NEW PRELOADER ===
+        function preloadNext(currentIndex, bufferSize) {
+            const maxStep = parseInt(document.getElementById('time-slider').max);
+            
+            // Look ahead N steps
+            for(let i = 1; i <= bufferSize; i++) {
+                let nextStep = currentIndex + i;
+                if(nextStep > maxStep) break;
+                
+                const nextOffset = nextStep * 10;
+                
+                ['left', 'right'].forEach(side => {
+                    const startStr = document.getElementById(`date-${side}`).value;
+                    const targetTime = moment(startStr).add(nextOffset, 'minutes');
+                    const targetISO = targetTime.format('YYYY-MM-DDTHH:mm:00') + 'Z';
+                    
+                    const frames = dataCache[side].filter(f => f.time === targetISO);
+                    frames.forEach(f => {
+                        if(!imageCache.has(f.url)) {
+                            const img = new Image();
+                            img.src = f.url;
+                            imageCache.set(f.url, img);
+                        }
+                    });
+                });
+            }
         }
 
         function togglePlay() {
@@ -249,7 +290,13 @@
             if(isPlaying) {
                 playTimer = setInterval(() => {
                     let val = parseInt(document.getElementById('time-slider').value);
-                    if(val >= totalSteps - 1) val = -1;
+                    const maxVal = parseInt(document.getElementById('time-slider').max);
+                    
+                    if(val >= maxVal) {
+                        // Loop back to start (min value)
+                        val = parseInt(document.getElementById('time-slider').min) - 1; 
+                    }
+                    
                     document.getElementById('time-slider').value = val + 1;
                     updateFrame(val + 1);
                 }, 500);

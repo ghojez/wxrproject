@@ -164,7 +164,7 @@
             frame.stations.forEach(st => {
                 const cfg = CONFIG.STATION_CONFIG[st.s];
                 const bounds = [[cfg.overlayBRC[0], cfg.overlayBRC[1]], [cfg.overlayTLC[0], cfg.overlayTLC[1]]];
-                const overlay = L.imageOverlay(st.url, bounds, { opacity: 0.8 }).addTo(state.map);
+                const overlay = L.imageOverlay(st.url, bounds, { opacity: 0.7 }).addTo(state.map); // CHANGED OPACITY TO 0.7
                 state.overlays.set(st.s, overlay);
             });
             preload(index);
